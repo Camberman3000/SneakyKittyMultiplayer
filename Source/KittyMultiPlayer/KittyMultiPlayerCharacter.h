@@ -82,6 +82,11 @@ protected:
 	bool Server_OnFire_Validate(FVector Location, FRotator Rotation);
 	void Server_OnFire_Implementation(FVector Location, FRotator Rotation);
 
+	UFUNCTION(NetMulticast, Reliable, WithValidation)
+	void Multi_OnFire(FVector Location, FRotator Rotation);
+	bool Multi_OnFire_Validate(FVector Location, FRotator Rotation);
+	void Multi_OnFire_Implementation(FVector Location, FRotator Rotation);
+
 	/** Handles moving forward/backward */
 	void MoveForward(float Val);
 

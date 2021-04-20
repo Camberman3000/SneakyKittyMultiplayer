@@ -97,8 +97,7 @@ void AKittyMultiPlayerCharacter::SetupPlayerInputComponent(class UInputComponent
 }
 
 void AKittyMultiPlayerCharacter::OnFire()
-{
-	UE_LOG(LogTemp, Warning, TEXT("FIRING On Client"));
+{	
 	// try and fire a projectile
 	if (ProjectileClass != nullptr)
 	{
@@ -108,15 +107,27 @@ void AKittyMultiPlayerCharacter::OnFire()
 			const FRotator SpawnRotation = GetControlRotation();
 			// MuzzleOffset is in camera space, so transform it to world space before offsetting from the character location to find the final muzzle position
 			const FVector SpawnLocation = ((FP_MuzzleLocation != nullptr) ? FP_MuzzleLocation->GetComponentLocation() : GetActorLocation()) + SpawnRotation.RotateVector(GunOffset);
+			
+			// If NOT the server (i.e. if this is the client calling OnFire())
+			 
+			//if (!GetWorld()->IsServer()) OR
+			//if (GetLocalRole() < ROLE_Authority) OR
+			if (!HasAuthority())
+			{    
+				// On the client
+				Server_OnFire(SpawnLocation, SpawnRotation);
+			}		
+			else
+			{
+				// On the server
+				//Set Spawn Collision Handling Override
+				FActorSpawnParameters ActorSpawnParams;
+				ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
 
-			//Set Spawn Collision Handling Override
-			FActorSpawnParameters ActorSpawnParams;
-			ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
-
-			// spawn the projectile at the muzzle
-			World->SpawnActor<AKittyMultiPlayerProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);	
-
-			Server_OnFire(SpawnLocation, SpawnRotation);
+				// spawn the projectile at the muzzle
+				World->SpawnActor<AKittyMultiPlayerProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
+				Multi_OnFire(SpawnLocation, SpawnRotation);
+			}
 		}
 	}
 	
@@ -146,6 +157,43 @@ bool AKittyMultiPlayerCharacter::Server_OnFire_Validate(FVector Location, FRotat
 void AKittyMultiPlayerCharacter::Server_OnFire_Implementation(FVector Location, FRotator Rotation)
 {
 	UE_LOG(LogTemp, Warning, TEXT("Server_OnFire_Implementation HAS BEEN CALLED"));
+	
+
+	Multi_OnFire(Location, Rotation);
+}
+
+bool AKittyMultiPlayerCharacter::Multi_OnFire_Validate(FVector Location, FRotator Rotation)
+{
+	return true;
+}
+
+void AKittyMultiPlayerCharacter::Multi_OnFire_Implementation(FVector Location, FRotator Rotation)
+{
+	UE_LOG(LogTemp, Warning, TEXT("Multi_OnFire_Implementation HAS BEEN CALLED"));
+
+	//Set Spawn Collision Handling Override
+	FActorSpawnParameters ActorSpawnParams;
+	ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
+
+	// spawn the projectile at the muzzle
+	GetWorld()->SpawnActor<AKittyMultiPlayerProjectile>(ProjectileClass, Location, Rotation, ActorSpawnParams);
+
+	// try and play the sound if specified
+	if (FireSound != nullptr)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation());
+	}
+
+	// try and play a firing animation if specified
+	if (FireAnimation != nullptr)
+	{
+		// Get the animation object for the arms mesh
+		UAnimInstance* AnimInstance = Mesh1P->GetAnimInstance();
+		if (AnimInstance != nullptr)
+		{
+			AnimInstance->Montage_Play(FireAnimation, 1.f);
+		}
+	}
 }
 
 void AKittyMultiPlayerCharacter::MoveForward(float Value)
